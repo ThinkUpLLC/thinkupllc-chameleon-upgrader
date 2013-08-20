@@ -4,84 +4,64 @@
 $passed_in = $argv[1];
 
 require_once 'config.inc.php';
-
 chdir(dirname(__FILE__) . '/../../..');
 require_once 'init.php';
 
-$params = JSONDecoder::decode($passed_in);
+// Upgrade results array which will be JSON encoded and returned at the end of the script
+$results = array('migration_attempt_commit'=>null, 'migration_success'=>false, 'migration_message'=>null);
 
-//Avoid "Error: DateTime::__construct(): It is not safe to rely on the system's timezone settings" error
-date_default_timezone_set($params->timezone);
-
-$CHAM_CONFIG['timezone'] = $params->timezone;
-$CHAM_CONFIG['db_host'] = $params->db_host;
-$CHAM_CONFIG['db_name'] = $params->db_name;
-$CHAM_CONFIG['db_socket'] = $params->db_socket;
-$CHAM_CONFIG['db_port'] = $params->db_port;
-$CHAM_CONFIG['site_root_path'] = "/user/".$params->installation_name."/";
-$CHAM_CONFIG['source_root_path'] = getcwd();
-$CHAM_CONFIG['data_dir_path'] = $CHAM_CONFIG['data_dir_root'] . $params->installation_name.'/';
-
-//echo Utils::varDumpToString($params);
-//echo Utils::varDumpToString($CHAM_CONFIG);
-
-$cfg = Config::getInstance($CHAM_CONFIG);
-
-
-
-// don't run via the web...
-if (isset($_SERVER['SERVER_NAME'])) {
-    die("This script should only be run via the command line.");
-}
-
-$no_version = true;
 try {
+    //Get commit hash and add to $results array
+    exec('git rev-parse --verify HEAD 2> /dev/null', $output);
+    $commit_hash = $output[0];
+    $results['migration_attempt_commit'] = $commit_hash;
+
+    $params = JSONDecoder::decode($passed_in);
+
+    //Avoid "Error: DateTime::__construct(): It is not safe to rely on the system's timezone settings" error
+    date_default_timezone_set($params->timezone);
+
+    $CHAM_CONFIG['timezone'] = $params->timezone;
+    $CHAM_CONFIG['db_host'] = $params->db_host;
+    $CHAM_CONFIG['db_name'] = $params->db_name;
+    $CHAM_CONFIG['db_socket'] = $params->db_socket;
+    $CHAM_CONFIG['db_port'] = $params->db_port;
+    $CHAM_CONFIG['site_root_path'] = "/user/".$params->installation_name."/";
+    $CHAM_CONFIG['source_root_path'] = getcwd();
+    $CHAM_CONFIG['data_dir_path'] = $CHAM_CONFIG['data_dir_root'] . $params->installation_name.'/';
+
+    //echo Utils::varDumpToString($params);
+    //echo Utils::varDumpToString($CHAM_CONFIG);
+
+    $cfg = Config::getInstance($CHAM_CONFIG);
+
     // do we need a migration?
     $db_version = UpgradeDatabaseController::getCurrentDBVersion($cached = false);
     $config = Config::getInstance();
     $thinkup_db_version = $config->getValue('THINKUP_VERSION');
     $filename = false;
-    if ($db_version == $thinkup_db_version && ! $no_version) {
-        error_log("\nYour ThinkUp database structure is up to date.\n");
-        exit;
-    } else {
-        if (!$no_version) {
-            print "\nThinkup needs to be upgraded to version $thinkup_db_version, proceed => [y|n] ";
-            $handle = fopen ("php://stdin","r");
-            $line = fgets($handle);
-            if (trim($line) != 'y'){
-                exit;
-            }
-        }
-    }
 
     // run updates...
     // get migrations we need to run...
-    if (!$no_version) {
-        print "\nUpgrading Thinkup to version $thinkup_db_version...\n\n";
-    }
-
     $upgrade_start_time = microtime(true);
     putenv('CLI_BACKUP=true');
     $upgrade_ctl = new UpgradeDatabaseController();
 
-    $migrations = $upgrade_ctl->getMigrationList($db_version, $no_version);
+    $migrations = $upgrade_ctl->getMigrationList($db_version, true);
     $install_dao = DAOFactory::getDAO('InstallerDAO');
-    if ($no_version && count($migrations) > 0) {
+    if (count($migrations) > 0) {
         $s = count($migrations) > 1 ? 's' : '';
-        print "\nFound " . count($migrations) . " migration" . $s . " to process...\n";
+        $results['migration_message'] = $results['migration_message'].
+        "\nFound " . count($migrations) . " migration" . $s . " to process...\n";
     }
     foreach($migrations as $migration) {
-        if ($no_version) {
-            print("\n  Running migration with file " . $migration['filename'] . "\n");
-        } else {
-            print("\n  Running migration " . $migration['version'] . "\n");
-        }
+        $results['migration_message'] = $results['migration_message'].
+        "\n  Running migration with file " . $migration['filename'] . "\n";
         $sql = preg_replace('/\-\-.*/','', $migration['sql']);
         $install_dao->runMigrationSQL($sql, $migration['new_migration'], $migration['filename']);
     }
     if (count($migrations) == 0) {
-        print("\n  No migrations to run...\n\n");
+        $results['migration_message'] = $results['migration_message']."\n  No migrations to run...\n\n";
         exit;
     }
 
@@ -98,8 +78,13 @@ try {
 
     $upgrade_end_time = microtime(true);
     $total_time = $upgrade_end_time - $upgrade_start_time;
-    print "\nUpgrade complete. Total time elapsed: ".round($total_time, 2)." seconds\n\n";
-} catch(Exception $e) {
-    error_log("  Error: " . $e->getMessage() . "\n");
+    $results['migration_message'] = $results['migration_message'].
+    "\nUpgrade complete. Total time elapsed: ".round($total_time, 2)." seconds\n\n";
+    $results['migration_success'] = true;
+} catch (Exception $e) {
+    $results['migration_message'] = $results['migration_message']. get_class($e).": ".$e->getMessage() . "\n";
+    $results['migration_success'] = false;
 }
+
+echo json_encode($results);
 
