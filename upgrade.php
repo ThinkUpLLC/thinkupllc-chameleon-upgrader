@@ -62,7 +62,6 @@ try {
     }
     if (count($migrations) == 0) {
         $results['migration_message'] = $results['migration_message']."\n  No migrations to run...\n\n";
-        exit;
     }
 
     $option_dao = DAOFactory::getDAO('OptionDAO');
