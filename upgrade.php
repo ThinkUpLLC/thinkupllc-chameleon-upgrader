@@ -33,13 +33,11 @@ try {
     //echo Utils::varDumpToString($params);
     //echo Utils::varDumpToString($CHAM_CONFIG);
 
-    $config_thinkup = Config::getInstance();
-    $thinkup_db_version = $config_thinkup->getValue('THINKUP_VERSION');
-
-    $config_chameleon = Config::getInstance($CHAM_CONFIG);
+    $cfg = Config::getInstance($CHAM_CONFIG);
 
     // do we need a migration?
     $db_version = UpgradeDatabaseController::getCurrentDBVersion($cached = false);
+    $thinkup_db_version = $cfg->getValue('THINKUP_VERSION');
     $filename = false;
 
     // run updates...
