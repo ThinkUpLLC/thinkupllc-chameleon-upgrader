@@ -37,7 +37,6 @@ try {
 
     // do we need a migration?
     $db_version = UpgradeDatabaseController::getCurrentDBVersion($cached = false);
-    $thinkup_db_version = $cfg->getValue('THINKUP_VERSION');
     $filename = false;
 
     // run updates...
@@ -65,10 +64,11 @@ try {
 
     $option_dao = DAOFactory::getDAO('OptionDAO');
     $option = $option_dao->getOptionByName(OptionDAO::APP_OPTIONS, 'database_version');
+    require THINKUP_WEBAPP_PATH . 'install/version.php';
     if ($option) {
-        $option_dao->updateOptionByName(OptionDAO::APP_OPTIONS, 'database_version',$thinkup_db_version);
+        $option_dao->updateOptionByName(OptionDAO::APP_OPTIONS, 'database_version', $THINKUP_VERSION);
     } else {
-        $option_dao->insertOption(OptionDAO::APP_OPTIONS, 'database_version', $thinkup_db_version);
+        $option_dao->insertOption(OptionDAO::APP_OPTIONS, 'database_version', $THINKUP_VERSION);
     }
 
     // delete upgrade token if it exists

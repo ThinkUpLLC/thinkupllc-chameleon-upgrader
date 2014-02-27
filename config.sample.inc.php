@@ -10,3 +10,6 @@ $CHAM_CONFIG['db_password']         = 'generic_upgrade_password';
 $CHAM_CONFIG['db_type']             = 'mysql';
 
 $CHAM_CONFIG['table_prefix']        = 'tu_';
+
+$CHAM_CONFIG['debug']               = true;
+$CHAM_CONFIG['cache_pages']         = false;
