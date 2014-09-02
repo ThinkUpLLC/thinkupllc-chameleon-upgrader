@@ -56,6 +56,8 @@ try {
         $results['migration_message'] = $results['migration_message'].
         "\n  Running migration with file " . $migration['filename'] . "\n";
         $sql = preg_replace('/\-\-.*/','', $migration['sql']);
+        //InnoDB is better performance in thinkup.com's production environment so let's switch to that
+        $sql = str_replace( "ENGINE=MyISAM", "ENGINE=InnoDB", $sql);
         $install_dao->runMigrationSQL($sql, $migration['new_migration'], $migration['filename']);
     }
     if (count($migrations) == 0) {
